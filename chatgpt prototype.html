@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Metronome Practice Time Estimator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      margin: auto;
+      background: #f9f9f9;
+      color: #333;
+      max-width: 800px;
+    }
+    h1, h2 {
+      color: #444;
+    }
+    select, input, button {
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      max-width: 100%;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    pre {
+      background: #fff;
+      padding: 10px;
+      white-space: pre-wrap;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    .inline-group {
+      display: flex;
+      gap: 15px; /* increased gap for space between minutes and seconds */
+      flex-wrap: wrap;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+    .inline-group > div {
+      flex: 0 0 80px; /* keep inputs narrow */
+    }
+    .inline-group label {
+      display: block;
+    }
+    #totalTimeDisplay {
+      color: red;
+      font-size: 1.8em;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    #timeMinutes, #timeSeconds {
+      width: 100%;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="totalTimeDisplay"></div>
+  <h1>Metronome Practice Time Estimator</h1>
+
+  <div class="inline-group">
+    <div>
+      <label for="timeMinutes">Minutes</label>
+      <input type="number" id="timeMinutes" min="0" placeholder="Minutes" />
+    </div>
+    <div>
+      <label for="timeSeconds">Seconds</label>
+      <input type="number" id="timeSeconds" min="0" max="59" placeholder="Seconds" />
+    </div>
+  </div>
+
+  <label><input type="checkbox" id="compoundToggle" /> Compound Meter (e.g., 6/8)</label>
+
+  <label for="startLevel">Starting Rhythmic Level:</label>
+  <select id="startLevel"></select>
+
+  <label for="startBPM">Starting BPM:</label>
+  <select id="startBPM"></select>
+
+  <label for="goalLevel">Goal Rhythmic Level:</label>
+  <select id="goalLevel"></select>
+
+  <label for="goalBPM">Goal BPM:</label>
+  <select id="goalBPM"></select>
+
+  <label for="restTime">Rest Between Repetitions (seconds):</label>
+  <input type="number" id="restTime" min="0" step="1" />
+
+  <label for="crossoverBPM">Crossover BPM (classic marking):</label>
+  <select id="crossoverBPM"></select>
+
+  <button onclick="estimateTime()" style="display: block; margin-top: 10px;">
+    Estimate Remaining Time
+  </button>
+
+  <h2>Results</h2>
+  <pre id="results"></pre>
+
+  <script>
+    const classicBPMs = [
+      40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60,
+      63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100,
+      104, 108, 112, 116, 120, 126, 132, 138, 144,
+      152, 160, 168, 176, 184, 192, 200, 208,
+    ];
+
+    const crossoverRange = classicBPMs.filter((bpm) => bpm >= 80);
+    const simpleLevels = [16, 8, 4, 2, 1];
+    const compoundLevels = [16, 8, 3, 1.5];
+
+    const levelLabels = {
+      16: "Sixteenth",
+      8: "Eighth",
+      4: "Quarter",
+      2: "Half",
+      1: "Whole",
+      3: "Dotted Quarter",
+      1.5: "Dotted Half",
+    };
+
+    function populateBPMs() {
+      const bpmSelectors = ["startBPM", "goalBPM"];
+      for (const id of bpmSelectors) {
+        const sel = document.getElementById(id);
+        sel.innerHTML = "";
+        classicBPMs.forEach((bpm) => {
+          const opt = document.createElement("option");
+          opt.value = bpm;
+          opt.text = bpm;
+          sel.appendChild(opt);
+        });
+      }
+
+      const crossoverSel = document.getElementById("crossoverBPM");
+      crossoverSel.innerHTML = "";
+      crossoverRange.forEach((bpm) => {
+        const opt = document.createElement("option");
+        opt.value = bpm;
+        opt.text = bpm;
+        if (bpm === 80) opt.selected = true;
+        crossoverSel.appendChild(opt);
+      });
+    }
+
+    function populateLevels() {
+      const isCompound = document.getElementById("compoundToggle").checked;
+      const levels = isCompound ? compoundLevels : simpleLevels;
+      const selects = ["startLevel", "goalLevel"];
+
+      selects.forEach((id) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = "";
+        levels.forEach((value) => {
+          const opt = document.createElement("option");
+          opt.value = value;
+          opt.textContent = levelLabels[value] || value;
+          if (value === 4) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      });
+    }
+
+    document
+      .getElementById("compoundToggle")
+      .addEventListener("change", populateLevels);
+
+    function formatHMS(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      return `${h}h ${m}m ${s}s`;
+    }
+
+    function nextRhythmLevel(currentLevel, isCompound) {
+      const rhythmLevels = isCompound ? compoundLevels : simpleLevels;
+      const idx = rhythmLevels.indexOf(currentLevel);
+      return idx < rhythmLevels.length - 1
+        ? rhythmLevels[idx + 1]
+        : currentLevel;
+    }
+
+    function estimateTime() {
+      const minutes = parseInt(document.getElementById("timeMinutes").value) || 0;
+      const seconds = parseInt(document.getElementById("timeSeconds").value) || 0;
+      const timePracticed = minutes * 60 + seconds;
+
+      const startLevel = parseFloat(document.getElementById("startLevel").value);
+      const startBPM = parseInt(document.getElementById("startBPM").value);
+      const goalLevel = parseFloat(document.getElementById("goalLevel").value);
+      const goalBPM = parseInt(document.getElementById("goalBPM").value);
+      const restTime = parseFloat(document.getElementById("restTime").value) || 0;
+      const crossoverBPM = parseInt(document.getElementById("crossoverBPM").value);
+
+      const isCompound = document.getElementById("compoundToggle").checked;
+      const goalRealBPM = goalBPM * (4 / goalLevel);
+
+      let currentLevel = startLevel;
+      let currentBPM = startBPM;
+      let reps = [{ bpm: currentBPM, level: currentLevel }];
+
+      while (currentBPM * (4 / currentLevel) < goalRealBPM) {
+        const currentRealBPM = currentBPM * (4 / currentLevel);
+        const crossoverRealBPM = crossoverBPM * (4 / currentLevel);
+
+        if (currentRealBPM >= crossoverRealBPM && currentLevel !== goalLevel) {
+          const nextLevel = nextRhythmLevel(currentLevel, isCompound);
+          const nextBPM = classicBPMs.find(
+            (b) => b * (4 / nextLevel) > currentRealBPM
+          );
+          if (nextBPM) {
+            currentLevel = nextLevel;
+            currentBPM = nextBPM;
+            reps.push({ bpm: currentBPM, level: currentLevel });
+            continue;
+          } else {
+            break;
+          }
+        }
+
+        const nextIndex = classicBPMs.indexOf(currentBPM) + 1;
+        if (nextIndex >= classicBPMs.length) break;
+        currentBPM = classicBPMs[nextIndex];
+        reps.push({ bpm: currentBPM, level: currentLevel });
+      }
+
+      let durations = [];
+      for (let i = 0; i < reps.length; i++) {
+        let currentRealBPM = reps[i].bpm * (4 / reps[i].level);
+        let prevRealBPM =
+          i === 0
+            ? currentRealBPM
+            : reps[i - 1].bpm * (4 / reps[i - 1].level);
+        let prevTime = i === 0 ? timePracticed : durations[i - 1].time;
+        let time = (prevTime * prevRealBPM) / currentRealBPM;
+        durations.push({
+          ...reps[i],
+          realBPM: currentRealBPM,
+          time,
+          total: time + restTime,
+        });
+      }
+
+      const results = ["Remaining Repetitions:"];
+      let totalRemaining = 0;
+      durations.forEach((rep, i) => {
+        totalRemaining += rep.total;
+        results.push(
+          `#${i + 1} - ${levelLabels[rep.level]} = ${rep.bpm}, Time: ${rep.time.toFixed(
+            2
+          )}s + Rest: ${restTime}s`
+        );
+      });
+
+      results.push(`\nTotal Remaining Time: ${totalRemaining.toFixed(2)} seconds`);
+      document.getElementById("results").textContent = results.join("\n");
+      document.getElementById("totalTimeDisplay").textContent = `Total: ${formatHMS(
+        totalRemaining
+      )}`;
+    }
+
+    populateBPMs();
+    populateLevels();
+  </script>
+</body>
+</html>
