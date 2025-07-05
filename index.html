@@ -1,10 +1,298 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Metronome Practice Time Estimator</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
+    <meta charset="UTF-8">
+    <title>Combined Apps</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app {
+            flex: 1;
+            border: 1px solid #ccc;
+            overflow: auto;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="app" id="metronome">
+        
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="Description" content="Metronome in HTML and Javascript">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Metronome</title>
+    <style>
+        body {
+            font-family: verdana, arial;
+            font-size: 16px;
+            margin: 20px;
+        }
+
+        #my_bpm_input {
+            background-color: yellow;
+            font-size: 40px;
+            width: 120px;
+        }
+
+        #my_play_button {
+            background-color: lightgreen;
+            font-size: 40px;
+        }
+
+        #my_volume_input {
+            font-size: 20px;
+            width: 40px;
+        }
+
+        .plus_minus {
+            font-size: 20px;
+            font-weight: bold;
+            width: 40px;
+            padding: 0;
+        }
+
+        #reset_button {
+            font-size: 16px;
+        }
+
+        #my_tap_pad {
+            width: 200px;
+            height: 200px;
+            background-color: lightgray;
+            border: 1px solid gray;
+        }
+
+        h1 {
+            font-weight: normal;
+            font-size: 20px;
+        }
+    </style>
+
+    <script>
+        "use strict"
+
+        let AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audio_context, oscillator, gain;
+        let my_play_button, my_bpm_input, my_volume_input, my_tap_results;
+        let beats = "1", current_beat = 1, running = false;
+        let prev_tap_time = 0, number_of_taps = 0, accumulated_tap_time = 0;
+
+        const classicTempos = [
+            40, 44, 48, 52, 56, 60, 63, 66, 69, 72, 76, 80,
+            84, 88, 92, 96, 100, 104, 108, 112, 116, 120,
+            126, 132, 138, 144, 152, 160, 168, 176, 184,
+            192, 200, 208
+        ];
+
+        function my_onload() {
+            my_play_button = document.getElementById("my_play_button");
+            my_bpm_input = document.getElementById("my_bpm_input");
+            my_volume_input = document.getElementById("my_volume_input");
+            my_tap_results = document.getElementById("my_tap_results");
+
+            classicTempos.forEach(bpm => {
+                const option = document.createElement("option");
+                option.value = bpm;
+                option.text = bpm;
+                my_bpm_input.add(option);
+            });
+            my_bpm_input.value = 84;
+        }
+
+        function play_or_stop() {
+            if (!audio_context) {
+                audio_context = new AudioContext();
+                oscillator = audio_context.createOscillator();
+                oscillator.type = "sine";
+                oscillator.frequency.value = 1000;
+                gain = audio_context.createGain();
+                gain.gain.value = 0;
+                oscillator.connect(gain);
+                gain.connect(audio_context.destination);
+                oscillator.start();
+            }
+
+            if (my_play_button.innerText === "Start") {
+                play();
+                my_play_button.innerText = "Stop";
+                my_play_button.style.backgroundColor = "red";
+            } else {
+                stop_playing();
+                my_play_button.innerText = "Start";
+                my_play_button.style.backgroundColor = "lightgreen";
+            }
+        }
+
+        function stop_playing() {
+            running = false;
+            const time = audio_context.currentTime;
+            gain.gain.cancelScheduledValues(time);
+            gain.gain.setValueAtTime(0, time);
+        }
+
+        function play() {
+            running = true;
+            let now = audio_context.currentTime + 0.5;
+            const bpm = parseInt(my_bpm_input.value);
+            const interval = 60.0 / bpm;
+            const iterations = 15 * bpm;
+            let volume;
+
+            for (let i = 0; i < iterations; i++) {
+                volume = (beats == "1") ? my_volume_input.value / 10.0 : calc_accented_volume(beats);
+                schedule_one_click(now + (i * interval), volume);
+            }
+        }
+
+        function schedule_one_click(time, volume) {
+            gain.gain.cancelScheduledValues(time);
+            gain.gain.setValueAtTime(0, time);
+            gain.gain.linearRampToValueAtTime(volume, time + .001);
+            gain.gain.linearRampToValueAtTime(0, time + .011);
+        }
+
+        function calc_accented_volume(beats) {
+            let volume = my_volume_input.value;
+            if (current_beat === 1) {
+                volume = (volume / 10.0) * 2.0;
+            } else {
+                volume = (volume / 10.0) / 2;
+            }
+            if (volume > 1.0) volume = 1.0;
+
+            current_beat++;
+            if (current_beat > beats) current_beat = 1;
+            return volume;
+        }
+
+        function change_bpm() {
+            stop_start();
+        }
+
+        function stop_start() {
+            current_beat = 1;
+            if (running) {
+                stop_playing();
+                play();
+            }
+        }
+
+        function change_volume() {
+            stop_start();
+        }
+
+        function change_frequency(el) {
+            oscillator.frequency.value = el.value;
+            stop_start();
+        }
+
+        function change_beats(el) {
+            beats = el.value;
+            stop_start();
+        }
+
+        function increment_volume(increment) {
+            let volume = parseInt(my_volume_input.value);
+            volume = Math.min(10, Math.max(1, volume + increment));
+            my_volume_input.value = volume;
+            stop_start();
+        }
+
+        function increment_dropdown(step) {
+            let current = parseInt(my_bpm_input.value);
+            let index = classicTempos.indexOf(current);
+            let newIndex = index + step;
+            if (newIndex >= 0 && newIndex < classicTempos.length) {
+                my_bpm_input.value = classicTempos[newIndex];
+                change_bpm();
+                my_play_button.focus();
+            }
+        }
+
+        function handle_tap() {
+            const now = new Date().getTime();
+            if (prev_tap_time !== 0) {
+                const delta = now - prev_tap_time;
+                accumulated_tap_time += delta;
+                number_of_taps++;
+                const avg = accumulated_tap_time / number_of_taps;
+                const last = Math.round(60000 / delta);
+                const bpm = Math.round(60000 / avg);
+                my_tap_results.innerText = `last tap=${last}, avg bpm=${bpm}`;
+            } else {
+                my_tap_results.innerText = "tapping started...";
+            }
+            prev_tap_time = now;
+        }
+
+        function reset_tap() {
+            prev_tap_time = 0;
+            number_of_taps = 0;
+            accumulated_tap_time = 0;
+            my_tap_results.innerText = "";
+        }
+    </script>
+</head>
+
+<body onload="my_onload()">
+
+    <h1>Metronome</h1>
+
+    <div><button onclick="play_or_stop()" id="my_play_button">Start</button></div>
+
+    <div>
+        <select id="my_bpm_input" onchange="change_bpm()"></select>
+        <button class="plus_minus" onclick="increment_dropdown(1)">+</button>
+        <button class="plus_minus" onclick="increment_dropdown(-1)">-</button>
+    </div>
+
+    <br>
+    <div id="my_volume_label">Volume (1 to 10)</div>
+    <input id="my_volume_input" onchange="change_volume()" type="number" value="5" min="1" max="10" step="1" />
+    <button class="plus_minus" onclick="increment_volume(1)">+</button>
+    <button class="plus_minus" onclick="increment_volume(-1)">-</button>
+
+    <br><br>
+    <div>Accent</div>
+    <label><input type="radio" name="beats" value="1" onclick="change_beats(this)" checked>None</label>
+    <label><input type="radio" name="beats" value="4" onclick="change_beats(this)">4/4</label>
+    <label><input type="radio" name="beats" value="3" onclick="change_beats(this)">3/4</label>
+    <label><input type="radio" name="beats" value="5" onclick="change_beats(this)">5/4</label>
+
+    
+    <br><br>
+    <div>Tap out beat using J key or click pad below to measure BPM
+        <button id="reset_button" onclick="reset_tap()">Reset</button>
+    </div>
+    <div id="my_tap_results"></div>
+    <div id="my_tap_pad" onclick="handle_tap()"></div>
+
+</body>
+
+</html>
+
+
+    </div>
+    <div class="app" id="mostly-working">
+        <!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Metronome Practice Time Estimator</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       padding: 20px;
@@ -75,48 +363,37 @@
   </style>
 </head>
 <body>
-  <div id="totalTimeDisplay"></div>
-  <h1>Metronome Practice Time Estimator</h1>
-
-  <div class="inline-group">
-    <div>
-      <label for="timeMinutes">Minutes</label>
-      <input type="number" id="timeMinutes" min="0" placeholder="Minutes" />
-    </div>
-    <div>
-      <label for="timeSeconds">Seconds</label>
-      <input type="number" id="timeSeconds" min="0" max="59" placeholder="Seconds" />
-    </div>
-  </div>
-
-  <label><input type="checkbox" id="compoundToggle" /> Compound Meter (e.g., 6/8)</label>
-
-  <label for="startLevel">Starting Rhythmic Level:</label>
-  <select id="startLevel"></select>
-
-  <label for="startBPM">Starting BPM:</label>
-  <select id="startBPM"></select>
-
-  <label for="goalLevel">Goal Rhythmic Level:</label>
-  <select id="goalLevel"></select>
-
-  <label for="goalBPM">Goal BPM:</label>
-  <select id="goalBPM"></select>
-
-  <label for="restTime">Rest Between Repetitions (seconds):</label>
-  <input type="number" id="restTime" min="0" step="1" />
-
-  <label for="crossoverBPM">Crossover BPM (classic marking):</label>
-  <select id="crossoverBPM"></select>
-
-  <button onclick="estimateTime()" style="display: block; margin-top: 10px;">
+<div id="totalTimeDisplay"></div>
+<h1>Metronome Practice Time Estimator</h1>
+<div class="inline-group">
+<div>
+<label for="timeMinutes">Minutes</label>
+<input id="timeMinutes" min="0" placeholder="Minutes" type="number"/>
+</div>
+<div>
+<label for="timeSeconds">Seconds</label>
+<input id="timeSeconds" max="59" min="0" placeholder="Seconds" type="number"/>
+</div>
+</div>
+<label><input id="compoundToggle" type="checkbox"/> Compound Meter (e.g., 6/8)</label>
+<label for="startLevel">Starting Rhythmic Level:</label>
+<select id="startLevel"></select>
+<label for="startBPM">Starting BPM:</label>
+<select id="startBPM"></select>
+<label for="goalLevel">Goal Rhythmic Level:</label>
+<select id="goalLevel"></select>
+<label for="goalBPM">Goal BPM:</label>
+<select id="goalBPM"></select>
+<label for="restTime">Rest Between Repetitions (seconds):</label>
+<input id="restTime" min="0" step="1" type="number"/>
+<label for="crossoverBPM">Crossover BPM:</label>
+<select id="crossoverBPM"></select>
+<button onclick="estimateTime()" style="display: block; margin-top: 10px;">
     Estimate Remaining Time
   </button>
-
-  <h2>Results</h2>
-  <pre id="results"></pre>
-
-  <script>
+<h2>Results</h2>
+<pre id="results"></pre>
+<script>
     const classicBPMs = [
       40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60,
       63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100,
@@ -281,5 +558,9 @@
     populateBPMs();
     populateLevels();
   </script>
+</body>
+</html>
+
+    </div>
 </body>
 </html>
