@@ -1,0 +1,573 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Combined Apps</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app {
+            flex: 1;
+            border: 1px solid #ccc;
+            overflow: auto;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="app" id="metronome">
+        
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="Description" content="Metronome in HTML and Javascript">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Metronome</title>
+    <style>
+        body {
+            font-family: verdana, arial;
+            font-size: 16px;
+            margin: 20px;
+        }
+
+        #my_bpm_input {
+            background-color: yellow;
+            font-size: 40px;
+            width: 120px;
+        }
+
+        #my_play_button {
+            background-color: lightgreen;
+            font-size: 40px;
+        }
+
+        #my_volume_input {
+            font-size: 20px;
+            width: 40px;
+        }
+
+        .plus_minus {
+            font-size: 20px;
+            font-weight: bold;
+            width: 40px;
+            padding: 0;
+        }
+
+        #reset_button {
+            font-size: 16px;
+        }
+
+        #my_tap_pad {
+            width: 200px;
+            height: 200px;
+            background-color: lightgray;
+            border: 1px solid gray;
+        }
+
+        h1 {
+            font-weight: normal;
+            font-size: 20px;
+        }
+    </style>
+
+    <script>
+        "use strict"
+
+        let AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audio_context, oscillator, gain;
+        let my_play_button, my_bpm_input, my_volume_input, my_tap_results;
+        let beats = "1", current_beat = 1, running = false;
+        let prev_tap_time = 0, number_of_taps = 0, accumulated_tap_time = 0;
+
+        const classicTempos = [
+            40, 42, 44, 46, 48, 50, 52, 54, 56, 60, 63, 66, 69, 72, 76, 80,
+            84, 88, 92, 96, 100, 104, 108, 112, 116, 120,
+            126, 132, 138, 144, 152, 160, 168, 176, 184,
+            192, 200, 208
+        ];
+
+        function my_onload() {
+            my_play_button = document.getElementById("my_play_button");
+            my_bpm_input = document.getElementById("my_bpm_input");
+            my_volume_input = document.getElementById("my_volume_input");
+            my_tap_results = document.getElementById("my_tap_results");
+
+            classicTempos.forEach(bpm => {
+                const option = document.createElement("option");
+                option.value = bpm;
+                option.text = bpm;
+                my_bpm_input.add(option);
+            });
+            my_bpm_input.value = 84;
+        }
+
+        function play_or_stop() {
+            if (!audio_context) {
+                audio_context = new AudioContext();
+                oscillator = audio_context.createOscillator();
+                oscillator.type = "sine";
+                oscillator.frequency.value = 1000;
+                gain = audio_context.createGain();
+                gain.gain.value = 0;
+                oscillator.connect(gain);
+                gain.connect(audio_context.destination);
+                oscillator.start();
+            }
+
+            if (my_play_button.innerText === "Start") {
+                play();
+                my_play_button.innerText = "Stop";
+                my_play_button.style.backgroundColor = "red";
+            } else {
+                stop_playing();
+                my_play_button.innerText = "Start";
+                my_play_button.style.backgroundColor = "lightgreen";
+            }
+        }
+
+        function stop_playing() {
+            running = false;
+            const time = audio_context.currentTime;
+            gain.gain.cancelScheduledValues(time);
+            gain.gain.setValueAtTime(0, time);
+        }
+
+        function play() {
+            running = true;
+            let now = audio_context.currentTime + 0.5;
+            const bpm = parseInt(my_bpm_input.value);
+            const interval = 60.0 / bpm;
+            const iterations = 15 * bpm;
+            let volume;
+
+            for (let i = 0; i < iterations; i++) {
+                volume = (beats == "1") ? my_volume_input.value / 10.0 : calc_accented_volume(beats);
+                schedule_one_click(now + (i * interval), volume);
+            }
+        }
+
+        function schedule_one_click(time, volume) {
+            gain.gain.cancelScheduledValues(time);
+            gain.gain.setValueAtTime(0, time);
+            gain.gain.linearRampToValueAtTime(volume, time + .001);
+            gain.gain.linearRampToValueAtTime(0, time + .011);
+        }
+
+        function calc_accented_volume(beats) {
+            let volume = my_volume_input.value;
+            if (current_beat === 1) {
+                volume = (volume / 10.0) * 2.0;
+            } else {
+                volume = (volume / 10.0) / 2;
+            }
+            if (volume > 1.0) volume = 1.0;
+
+            current_beat++;
+            if (current_beat > beats) current_beat = 1;
+            return volume;
+        }
+
+        function change_bpm() {
+            stop_start();
+        }
+
+        function stop_start() {
+            current_beat = 1;
+            if (running) {
+                stop_playing();
+                play();
+            }
+        }
+
+        function change_volume() {
+            stop_start();
+        }
+
+        function change_frequency(el) {
+            oscillator.frequency.value = el.value;
+            stop_start();
+        }
+
+        function change_beats(el) {
+            beats = el.value;
+            stop_start();
+        }
+
+        function increment_volume(increment) {
+            let volume = parseInt(my_volume_input.value);
+            volume = Math.min(10, Math.max(1, volume + increment));
+            my_volume_input.value = volume;
+            stop_start();
+        }
+
+        function increment_dropdown(step) {
+            let current = parseInt(my_bpm_input.value);
+            let index = classicTempos.indexOf(current);
+            let newIndex = index + step;
+            if (newIndex >= 0 && newIndex < classicTempos.length) {
+                my_bpm_input.value = classicTempos[newIndex];
+                change_bpm();
+                my_play_button.focus();
+            }
+        }
+
+        function handle_tap() {
+            const now = new Date().getTime();
+            if (prev_tap_time !== 0) {
+                const delta = now - prev_tap_time;
+                accumulated_tap_time += delta;
+                number_of_taps++;
+                const avg = accumulated_tap_time / number_of_taps;
+                const last = Math.round(60000 / delta);
+                const bpm = Math.round(60000 / avg);
+                my_tap_results.innerText = `last tap=${last}, avg bpm=${bpm}`;
+            } else {
+                my_tap_results.innerText = "tapping started...";
+            }
+            prev_tap_time = now;
+        }
+
+        function reset_tap() {
+            prev_tap_time = 0;
+            number_of_taps = 0;
+            accumulated_tap_time = 0;
+            my_tap_results.innerText = "";
+        }
+    </script>
+</head>
+
+<body onload="my_onload()">
+
+    <h1>Metronome</h1>
+
+    <div><button onclick="play_or_stop()" id="my_play_button">Start</button></div>
+
+    <div>
+        <select id="my_bpm_input" onchange="change_bpm()"></select>
+        <button class="plus_minus" onclick="increment_dropdown(1)">+</button>
+        <button class="plus_minus" onclick="increment_dropdown(-1)">-</button>
+    </div>
+
+    <br>
+    <div id="my_volume_label">Volume (1 to 10)</div>
+    <input id="my_volume_input" onchange="change_volume()" type="number" value="5" min="1" max="10" step="1" />
+    <button class="plus_minus" onclick="increment_volume(1)">+</button>
+    <button class="plus_minus" onclick="increment_volume(-1)">-</button>
+
+    <br><br>
+    <div>Accent</div>
+    <label><input type="radio" name="beats" value="1" onclick="change_beats(this)" checked>None</label>
+    <label><input type="radio" name="beats" value="4" onclick="change_beats(this)">4/4</label>
+    <label><input type="radio" name="beats" value="3" onclick="change_beats(this)">3/4</label>
+    <label><input type="radio" name="beats" value="5" onclick="change_beats(this)">5/4</label>
+
+    
+    <br><br>
+    <div>Tap out beat using J key or click pad below to measure BPM
+        <button id="reset_button" onclick="reset_tap()">Reset</button>
+    </div>
+    <div id="my_tap_results"></div>
+    <div id="my_tap_pad" onclick="handle_tap()"></div>
+
+</body>
+
+</html>
+
+
+    </div>
+    <div class="app" id="mostly-working">
+        <!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Metronome Practice Time Estimator</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      margin: auto;
+      background: #f9f9f9;
+      color: #333;
+      max-width: 800px;
+    }
+    h1, h2 {
+      color: #444;
+    }
+    select, input, button {
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      max-width: 100%;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    pre {
+      background: #fff;
+      padding: 10px;
+      white-space: pre-wrap;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    .inline-group {
+      display: flex;
+      gap: 15px; /* increased gap for space between minutes and seconds */
+      flex-wrap: wrap;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+    .inline-group > div {
+      flex: 0 0 80px; /* keep inputs narrow */
+    }
+    .inline-group label {
+      display: block;
+    }
+    #totalTimeDisplay {
+      color: red;
+      font-size: 1.8em;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    #timeMinutes, #timeSeconds {
+      width: 100%;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="totalTimeDisplay"></div>
+<h1>Metronome Practice Time Estimator</h1>
+<div class="inline-group">
+<div>
+<label for="timeMinutes">Minutes</label>
+<input id="timeMinutes" min="0" placeholder="Minutes" type="number"/>
+</div>
+<div>
+<label for="timeSeconds">Seconds</label>
+<input id="timeSeconds" max="59" min="0" placeholder="Seconds" type="number"/>
+</div>
+</div>
+<label><input id="compoundToggle" type="checkbox"/> Compound Meter (e.g., 6/8)</label>
+<label for="startLevel">Starting Rhythmic Level:</label>
+<select id="startLevel"></select>
+<label for="startBPM">Starting BPM:</label>
+<select id="startBPM"></select>
+<label for="goalLevel">Goal Rhythmic Level:</label>
+<select id="goalLevel"></select>
+<label for="goalBPM">Goal BPM:</label>
+<select id="goalBPM"></select>
+<label for="restTime">Rest Between Repetitions (seconds):</label>
+<input id="restTime" min="0" step="1" type="number"/>
+<label for="crossoverBPM">Crossover BPM:</label>
+<select id="crossoverBPM"></select>
+<button onclick="estimateTime()" style="display: block; margin-top: 10px;">
+    Estimate Remaining Time
+  </button>
+<h2>Results</h2>
+<pre id="results"></pre>
+<script>
+    const classicBPMs = [
+      40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60,
+      63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100,
+      104, 108, 112, 116, 120, 126, 132, 138, 144,
+      152, 160, 168, 176, 184, 192, 200, 208,
+    ];
+
+    const crossoverRange = classicBPMs.filter((bpm) => bpm >= 80);
+    const simpleLevels = [16, 8, 4, 2, 1];
+    const compoundLevels = [16, 8, 3, 1.5];
+
+    const levelLabels = {
+      16: "Sixteenth",
+      8: "Eighth",
+      4: "Quarter",
+      2: "Half",
+      1: "Whole",
+      3: "Dotted Quarter",
+      1.5: "Dotted Half",
+    };
+
+    function populateBPMs() {
+      const bpmSelectors = ["startBPM", "goalBPM"];
+      for (const id of bpmSelectors) {
+        const sel = document.getElementById(id);
+        sel.innerHTML = "";
+        classicBPMs.forEach((bpm) => {
+          const opt = document.createElement("option");
+          opt.value = bpm;
+          opt.text = bpm;
+          sel.appendChild(opt);
+        });
+      }
+
+      const crossoverSel = document.getElementById("crossoverBPM");
+      crossoverSel.innerHTML = "";
+      crossoverRange.forEach((bpm) => {
+        const opt = document.createElement("option");
+        opt.value = bpm;
+        opt.text = bpm;
+        if (bpm === 80) opt.selected = true;
+        crossoverSel.appendChild(opt);
+      });
+    }
+
+    function populateLevels() {
+      const isCompound = document.getElementById("compoundToggle").checked;
+      const levels = isCompound ? compoundLevels : simpleLevels;
+      const selects = ["startLevel", "goalLevel"];
+
+      selects.forEach((id) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = "";
+        levels.forEach((value) => {
+          const opt = document.createElement("option");
+          opt.value = value;
+          opt.textContent = levelLabels[value] || value;
+          if (value === 4) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      });
+    }
+
+    document
+      .getElementById("compoundToggle")
+      .addEventListener("change", populateLevels);
+
+    function formatHMS(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      return `${h}h ${m}m ${s}s`;
+    }
+
+    function nextRhythmLevel(currentLevel, isCompound) {
+      const rhythmLevels = isCompound ? compoundLevels : simpleLevels;
+      const idx = rhythmLevels.indexOf(currentLevel);
+      return idx < rhythmLevels.length - 1
+        ? rhythmLevels[idx + 1]
+        : currentLevel;
+    }
+
+    function estimateTime() {
+      const minutes = parseInt(document.getElementById("timeMinutes").value) || 0;
+      const seconds = parseInt(document.getElementById("timeSeconds").value) || 0;
+      const timePracticed = minutes * 60 + seconds;
+
+      const startLevel = parseFloat(document.getElementById("startLevel").value);
+      const startBPM = parseInt(document.getElementById("startBPM").value);
+      const goalLevel = parseFloat(document.getElementById("goalLevel").value);
+      const goalBPM = parseInt(document.getElementById("goalBPM").value);
+      const restTime = parseFloat(document.getElementById("restTime").value) || 0;
+      const crossoverBPM = parseInt(document.getElementById("crossoverBPM").value);
+
+      const isCompound = document.getElementById("compoundToggle").checked;
+      const goalRealBPM = goalBPM * (4 / goalLevel);
+
+      let currentLevel = startLevel;
+      let currentBPM = startBPM;
+      let reps = [{ bpm: currentBPM, level: currentLevel }];
+
+      while (currentBPM * (4 / currentLevel) < goalRealBPM) {
+        const currentRealBPM = currentBPM * (4 / currentLevel);
+        const crossoverRealBPM = crossoverBPM * (4 / currentLevel);
+
+        if (currentRealBPM >= crossoverRealBPM && currentLevel !== goalLevel) {
+          const nextLevel = nextRhythmLevel(currentLevel, isCompound);
+          const nextBPM = classicBPMs.find(
+            (b) => b * (4 / nextLevel) > currentRealBPM
+          );
+          if (nextBPM) {
+	if (isCompound && currentLevel === 8 && nextLevel === 3) {
+  // Switching from eighth to dotted quarter in compound meter
+  currentLevel = nextLevel;
+  currentBPM = Math.round(currentBPM / 3);
+  reps.push({ bpm: currentBPM, level: currentLevel });
+  continue;
+}
+            currentLevel = nextLevel;
+            currentBPM = nextBPM;
+            reps.push({ bpm: currentBPM, level: currentLevel });
+            continue;
+          } else {
+            break;
+          }
+        }
+
+        const nextIndex = classicBPMs.indexOf(currentBPM) + 1;
+        if (nextIndex >= classicBPMs.length) break;
+        currentBPM = classicBPMs[nextIndex];
+        reps.push({ bpm: currentBPM, level: currentLevel });
+      }
+
+      let durations = [];
+      for (let i = 0; i < reps.length; i++) {
+        let currentRealBPM = reps[i].bpm * (4 / reps[i].level);
+        let prevRealBPM =
+          i === 0
+            ? currentRealBPM
+            : reps[i - 1].bpm * (4 / reps[i - 1].level);
+        let prevTime = i === 0 ? timePracticed : durations[i - 1].time;
+        let time = (prevTime * prevRealBPM) / currentRealBPM;
+        durations.push({
+          ...reps[i],
+          realBPM: currentRealBPM,
+          time,
+          total: time + restTime,
+        });
+      }
+
+      const results = ["Remaining Repetitions:"];
+      let totalRemaining = 0;
+      durations.forEach((rep, i) => {
+        totalRemaining += rep.total;
+        results.push(
+          `#${i + 1} - ${levelLabels[rep.level]} = ${rep.bpm}, Time: ${rep.time.toFixed(
+            2
+          )}s + Rest: ${restTime}s`
+        );
+      });
+
+      results.push(`\nTotal Remaining Time: ${totalRemaining.toFixed(2)} seconds`);
+      document.getElementById("results").textContent = results.join("\n");
+      document.getElementById("totalTimeDisplay").textContent = `Total: ${formatHMS(
+        totalRemaining
+      )}`;
+    }
+
+    populateBPMs();
+    populateLevels();
+  </script>
+</body>
+</html>
+
+    </div>
+</body>
+</html>
