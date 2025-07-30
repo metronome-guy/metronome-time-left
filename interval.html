@@ -237,7 +237,7 @@
     ];
     const data = labels.map((k) => {
       const { correct = 0, total = 0 } = intervalStats[k] || {};
-      return total ? (correct / total) * 100 : 0;
+      return total ? ((total - correct) / total) * 100 : 0;
     });
     if (chart) chart.destroy();
     chart = new Chart(chartCtx, {
@@ -246,7 +246,7 @@
         labels,
         datasets: [
           {
-            label: "% Correct",
+            label: "% Incorrect",
             data,
             backgroundColor: colors,
           },
